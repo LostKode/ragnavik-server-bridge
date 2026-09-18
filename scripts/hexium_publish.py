@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -130,7 +131,7 @@ def current_install_location(name: str) -> str:
     match = re.search(r"<span class=\"tag tag--install-location\"[^>]*>([^<]+)<\/span>", page)
     if not match:
         fail(f"Hexium page did not expose install-location metadata: {url}")
-    return match.group(1)
+    return html.unescape(match.group(1)).strip()
 
 
 def current(args: argparse.Namespace) -> None:
