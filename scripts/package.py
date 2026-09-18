@@ -11,7 +11,7 @@ dll = ROOT / "src/bin/Release/netstandard2.1/RagnavikServerBridge.dll"
 if not dll.is_file():
     raise SystemExit("Build the plugin before packaging.")
 
-archive = ROOT / "artifacts" / f"Ragnavik_Server_Bridge-{manifest['version_number']}.zip"
+archive = ROOT / "artifacts" / f"LostKode-Ragnavik_Server_Bridge-{manifest['version_number']}.zip"
 archive.parent.mkdir(parents=True, exist_ok=True)
 files = {
     "CHANGELOG.md": ROOT / "CHANGELOG.md",

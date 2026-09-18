@@ -64,7 +64,7 @@ jobs:
         run: >-
           python3 scripts/thunderstore_release.py prepare
           --manifest package/manifest.json
-          --package "artifacts/Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
+          --package "artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
           --expected-version "${{ inputs.expected_version }}"
           --release-id "${{ inputs.release_id }}"
           --blog-url "${{ inputs.blog_url }}"
@@ -77,7 +77,7 @@ jobs:
         run: >-
           dotnet tool run tcli publish
           --config-path .tcli/thunderstore.toml
-          --file "artifacts/Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
+          --file "artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
           --token "$THUNDERSTORE_TOKEN"
       - name: Verify public package
         if: inputs.publish

@@ -21,7 +21,7 @@ scripts/build.sh
 scripts/package.sh
 ```
 
-The build runs the offline outbox tests. The package is `artifacts/Ragnavik_Server_Bridge-<version>.zip` and contains `RagnavikServerBridge.dll` plus `lostkode.ragnavik.serverbridge.cfg`.
+The build runs the offline outbox tests. The package is `artifacts/LostKode-Ragnavik_Server_Bridge-<version>.zip` and contains `RagnavikServerBridge.dll` plus `lostkode.ragnavik.serverbridge.cfg`.
 
 The bridge deliberately uses one token header for both routes. If the legacy receivers expect different headers, update their private configuration to accept the bridge header before enabling both adapters.
 
