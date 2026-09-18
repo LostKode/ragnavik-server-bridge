@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
@@ -9,20 +10,20 @@ readme = (root / "README.md").read_text(encoding="utf-8")
 hexium_workflow = (root / ".github/workflows/publish-hexium.yml").read_text(encoding="utf-8")
 required = {
     "manifest name": manifest["name"] == "Ragnavik_Server_Bridge",
-    "manifest version": manifest["version_number"] == "1.0.0",
+    "manifest version": bool(re.fullmatch(r"\d+\.\d+\.\d+", manifest["version_number"])),
     "BepInEx dependency": "denikson-BepInExPack_Valheim-5.4.2350" in manifest["dependencies"],
     "Catos dependency": "catosaurluna-CatosAntiCheat-1.0.4" in manifest["dependencies"],
     "plugin GUID": 'ModGuid = "lostkode.ragnavik.serverbridge"' in source,
-    "plugin version": 'ModVersion = "1.0.0"' in source,
+    "plugin version": f'ModVersion = "{manifest["version_number"]}"' in source,
     "mismatch hook": 'AccessTools.Method(poster, "PostMismatchKick")' in source,
     "timeout hook": 'AccessTools.Method(poster, "PostTimeoutKick")' in source,
     "future adapter disabled": "AzuAntiCheatEnabled = false" in (root / "package/config/lostkode.ragnavik.serverbridge.cfg").read_text(encoding="utf-8"),
     "server-only policy": "CatosAntiCheat_ServerOnly.txt" in readme,
-    "Hexium package": "LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip" in hexium_workflow,
+    "Hexium package": "artifacts/LostKode-Ragnavik_Server_Bridge-$EXPECTED_VERSION.zip" in hexium_workflow,
     "Hexium helper": "scripts/hexium_publish.py" in hexium_workflow,
     "Hexium repository": "--repository https://hexium.gg" in hexium_workflow,
     "Hexium token": "secrets.HEXIUM_AUTH_TOKEN" in hexium_workflow,
-    "Hexium publish gate": "if: inputs.publish" in hexium_workflow,
+    "Hexium publish gate": "if: env.PUBLISH_REQUIRED == 'true'" in hexium_workflow,
     "Hexium verification": "Verify public package" in hexium_workflow,
     "artifact upload": "actions/upload-artifact@v4" in hexium_workflow,
 }
