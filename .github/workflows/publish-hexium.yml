@@ -110,10 +110,11 @@ jobs:
         if: inputs.publish
         run: >-
           python3 scripts/hexium_publish.py verify
-          --repository https://hexium.gg
+          --repository https://valheim.hexium.gg
           --name Ragnavik_Server_Bridge
           --version "${{ inputs.expected_version }}"
       - name: Upload release artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}
