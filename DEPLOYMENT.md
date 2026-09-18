@@ -7,7 +7,7 @@ Ragnavik Server Bridge is server-only. Its GUID is `lostkode.ragnavik.serverbrid
 1. Keep `BridgePlugin.ModVersion`, `package/manifest.json`, and `CHANGELOG.md` aligned.
 2. Run `scripts/build.sh` and `scripts/package.sh` from a clean checkout.
 3. Validate the exact CatosAntiCheat 1.0.4 hook signatures and stage both existing receiver routes.
-4. Publish the corresponding Ragnavik website post before any Hexium or Thunderstore publication.
+4. Publish the corresponding Ragnavik website post before any Hexium publication.
 5. Reconstruct the complete effective client and server manifests. Remove the two legacy DLLs and GUIDs only when adding this bridge DLL and GUID.
 6. Before an authorized production restart, check players, save the world, and create and verify a separate rollback backup.
 7. After restart, verify node placement, readiness, BepInEx plugin count, bridge diagnostics, Catos enforcement, outbox delivery, and source-to-runtime parity.
@@ -18,9 +18,9 @@ Confirm a progress snapshot is accepted once, a controlled Catos mismatch and ti
 
 ## Hexium CI
 
-The manually dispatched `Publish to Hexium` workflow builds and validates the same ZIP used by the Thunderstore workflow. Dry runs leave `publish` disabled. Publication requires the repository secret `HEXIUM_AUTH_TOKEN` and uses the `hexium-production` environment.
+The manually dispatched `Publish to Hexium` workflow builds, validates, and retains the release ZIP as a workflow artifact. Dry runs leave `publish` disabled. Publication requires the repository secret `HEXIUM_AUTH_TOKEN` and uses the `hexium-production` environment.
 
-The workflow validates the public Ragnavik release post before preparing TCLI metadata, then uses Hexium's Thunderstore-compatible repository endpoint. A publishing run verifies that Hexium exposes the exact package version before succeeding.
+The workflow validates the public Ragnavik release post before preparing TCLI metadata, then publishes with TCLI to Hexium. A publishing run verifies that Hexium exposes the exact package version before succeeding.
 
 Hexium publishing is separate from deployment. A successful upload does not authorize a server-pack update, production restart, or removal of either legacy repository.
 
