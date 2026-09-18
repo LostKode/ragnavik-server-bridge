@@ -7,6 +7,7 @@ on:
       release_id: {description: Shared release train identifier, required: true, type: string}
       expected_version: {description: Version expected in package manifest, required: true, type: string}
       blog_url: {description: Published Ragnavik release blog URL, required: true, type: string}
+      staged_release_tag: {description: Optional private draft release tag containing the exact package ZIP, required: false, default: "", type: string}
       publish: {description: Upload after validation, required: true, default: false, type: boolean}
 
 permissions:
@@ -26,9 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
+        if: inputs.staged_release_tag == ''
         with:
           dotnet-version: "8.0.x"
       - name: Resolve build references
+        if: inputs.staged_release_tag == ''
         shell: bash
         run: |
           if [[ -d "${VALHEIM_MANAGED_DIR:-}" && -d "${BEPINEX_CORE_DIR:-}" ]]; then
@@ -56,8 +59,27 @@ jobs:
           test -n "$bepinex_dir"
           echo "VALHEIM_MANAGED_DIR=$managed_dir" >> "$GITHUB_ENV"
           echo "BEPINEX_CORE_DIR=$bepinex_dir" >> "$GITHUB_ENV"
-      - run: ./scripts/build.sh
-      - run: ./scripts/package.sh
+      - name: Build Server Bridge
+        if: inputs.staged_release_tag == ''
+        run: ./scripts/build.sh
+      - name: Package Server Bridge
+        if: inputs.staged_release_tag == ''
+        run: ./scripts/package.sh
+      - name: Download staged release package
+        if: inputs.staged_release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGED_RELEASE_TAG: ${{ inputs.staged_release_tag }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        shell: bash
+        run: |
+          archive="LostKode-Ragnavik_Server_Bridge-${EXPECTED_VERSION}.zip"
+          mkdir -p artifacts
+          gh release download "$STAGED_RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$archive" \
+            --dir artifacts
+          test -f "artifacts/$archive"
       - run: dotnet tool restore
       - name: Prepare Hexium release metadata
         run: >-
