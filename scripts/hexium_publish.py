@@ -120,7 +120,7 @@ def current_version(name: str) -> str | None:
             version = metadata.get("softwareVersion")
             if isinstance(version, str):
                 return version
-    fail(f"Hexium page did not expose structured version metadata: {url}")
+    return None
 
 
 def current_install_location(name: str) -> str:
