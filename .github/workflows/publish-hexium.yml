@@ -1,14 +1,11 @@
 name: Publish to Hexium
-run-name: Hexium ${{ inputs.release_id }} ${{ inputs.expected_version }}
+run-name: Hexium automatic release ${{ github.run_id }}
 
 on:
+  push:
+    branches: [main]
+    paths: ["package/manifest.json", ".github/workflows/publish-hexium.yml"]
   workflow_dispatch:
-    inputs:
-      release_id: {description: Shared release train identifier, required: true, type: string}
-      expected_version: {description: Version expected in package manifest, required: true, type: string}
-      blog_url: {description: Published Ragnavik release blog URL, required: true, type: string}
-      staged_release_tag: {description: Optional private draft release tag containing the exact package ZIP, required: false, default: "", type: string}
-      publish: {description: Upload after validation, required: true, default: true, type: boolean}
 
 permissions:
   contents: read
@@ -26,12 +23,14 @@ jobs:
       BEPINEX_CORE_DIR: ${{ vars.BEPINEX_CORE_DIR }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve release metadata
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("package/manifest.json"))["version_number"])')
+          echo "EXPECTED_VERSION=$version" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@v4
-        if: inputs.staged_release_tag == ''
         with:
           dotnet-version: "8.0.x"
       - name: Resolve build references
-        if: inputs.staged_release_tag == ''
         shell: bash
         run: |
           if [[ -d "${VALHEIM_MANAGED_DIR:-}" && -d "${BEPINEX_CORE_DIR:-}" ]]; then
@@ -60,63 +59,55 @@ jobs:
           echo "VALHEIM_MANAGED_DIR=$managed_dir" >> "$GITHUB_ENV"
           echo "BEPINEX_CORE_DIR=$bepinex_dir" >> "$GITHUB_ENV"
       - name: Build Server Bridge
-        if: inputs.staged_release_tag == ''
         run: ./scripts/build.sh
       - name: Package Server Bridge
-        if: inputs.staged_release_tag == ''
         run: ./scripts/package.sh
-      - name: Download staged release package
-        if: inputs.staged_release_tag != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          STAGED_RELEASE_TAG: ${{ inputs.staged_release_tag }}
-          EXPECTED_VERSION: ${{ inputs.expected_version }}
-        shell: bash
-        run: |
-          archive="LostKode-Ragnavik_Server_Bridge-${EXPECTED_VERSION}.zip"
-          mkdir -p artifacts
-          gh release download "$STAGED_RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --pattern "$archive" \
-            --dir artifacts
-          test -f "artifacts/$archive"
       - run: dotnet tool restore
       - name: Prepare Hexium release metadata
         run: >-
           python3 scripts/hexium_publish.py prepare
           --manifest package/manifest.json
-          --package "artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
-          --expected-version "${{ inputs.expected_version }}"
-          --release-id "${{ inputs.release_id }}"
-          --blog-url "${{ inputs.blog_url }}"
+          --package "artifacts/LostKode-Ragnavik_Server_Bridge-$EXPECTED_VERSION.zip"
+          --expected-version "$EXPECTED_VERSION"
+          --release-id "${{ github.run_id }}"
           --repository https://hexium.gg
           --category Logging --category "Open Source" --category "Valheim 1.0"
           --output .tcli/hexium.toml
+      - name: Check public release state
+        run: |
+          public_version=$(python3 scripts/hexium_publish.py current --name Ragnavik_Server_Bridge)
+          if [[ -z "$public_version" ]]; then
+            echo "PUBLISH_REQUIRED=true" >> "$GITHUB_ENV"
+          elif [[ "$public_version" == "$EXPECTED_VERSION" ]]; then
+            echo "PUBLISH_REQUIRED=false" >> "$GITHUB_ENV"
+          else
+            echo "Expected $EXPECTED_VERSION but Hexium currently exposes $public_version" >&2
+            exit 1
+          fi
       - name: Require Hexium token for publication
-        if: inputs.publish
+        if: env.PUBLISH_REQUIRED == 'true'
         env:
           HEXIUM_AUTH_TOKEN: ${{ secrets.HEXIUM_AUTH_TOKEN }}
         run: test -n "$HEXIUM_AUTH_TOKEN"
       - name: Publish package
-        if: inputs.publish
+        if: env.PUBLISH_REQUIRED == 'true'
         env:
           HEXIUM_AUTH_TOKEN: ${{ secrets.HEXIUM_AUTH_TOKEN }}
         run: >-
           dotnet tool run tcli publish
           --config-path .tcli/hexium.toml
-          --file "artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
+          --file "artifacts/LostKode-Ragnavik_Server_Bridge-$EXPECTED_VERSION.zip"
           --token "$HEXIUM_AUTH_TOKEN"
       - name: Verify public package
-        if: inputs.publish
         run: >-
           python3 scripts/hexium_publish.py verify
           --repository https://valheim.hexium.gg
           --name Ragnavik_Server_Bridge
-          --version "${{ inputs.expected_version }}"
+          --version "$EXPECTED_VERSION"
       - name: Upload release artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}
-          path: artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip
+          name: LostKode-Ragnavik_Server_Bridge-${{ env.EXPECTED_VERSION }}
+          path: artifacts/LostKode-Ragnavik_Server_Bridge-${{ env.EXPECTED_VERSION }}.zip
           if-no-files-found: error
