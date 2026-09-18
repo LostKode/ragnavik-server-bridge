@@ -62,7 +62,7 @@ jobs:
       - run: dotnet tool restore
       - name: Prepare Hexium release metadata
         run: >-
-          python3 scripts/thunderstore_release.py prepare
+          python3 scripts/hexium_publish.py prepare
           --manifest package/manifest.json
           --package "artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
           --expected-version "${{ inputs.expected_version }}"
@@ -88,7 +88,13 @@ jobs:
       - name: Verify public package
         if: inputs.publish
         run: >-
-          python3 scripts/thunderstore_release.py verify
+          python3 scripts/hexium_publish.py verify
           --repository https://hexium.gg
           --name Ragnavik_Server_Bridge
           --version "${{ inputs.expected_version }}"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}
+          path: artifacts/LostKode-Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip
+          if-no-files-found: error
