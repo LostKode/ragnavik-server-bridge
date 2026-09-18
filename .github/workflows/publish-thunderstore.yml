@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: thunderstore-ragnavik-progress
+  group: thunderstore-ragnavik-server-bridge
   cancel-in-progress: false
 
 jobs:
@@ -42,6 +42,7 @@ jobs:
             --volume "$install_root/valheim:/data" \
             steamcmd/steamcmd:ubuntu-22 \
             +force_install_dir /data \
+            +@sSteamCmdForcePlatformType windows \
             +login anonymous \
             +app_update 896660 validate \
             +quit
@@ -63,7 +64,7 @@ jobs:
         run: >-
           python3 scripts/thunderstore_release.py prepare
           --manifest package/manifest.json
-          --package "artifacts/Ragnavik_Progress-${{ inputs.expected_version }}.zip"
+          --package "artifacts/Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
           --expected-version "${{ inputs.expected_version }}"
           --release-id "${{ inputs.release_id }}"
           --blog-url "${{ inputs.blog_url }}"
@@ -76,11 +77,11 @@ jobs:
         run: >-
           dotnet tool run tcli publish
           --config-path .tcli/thunderstore.toml
-          --file "artifacts/Ragnavik_Progress-${{ inputs.expected_version }}.zip"
+          --file "artifacts/Ragnavik_Server_Bridge-${{ inputs.expected_version }}.zip"
           --token "$THUNDERSTORE_TOKEN"
       - name: Verify public package
         if: inputs.publish
         run: >-
           python3 scripts/thunderstore_release.py verify
-          --name Ragnavik_Progress
+          --name Ragnavik_Server_Bridge
           --version "${{ inputs.expected_version }}"

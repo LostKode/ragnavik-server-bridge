@@ -1,20 +1,21 @@
 # Release and deployment
 
-Ragnavik Progress is server-only. Never add it to a client pack. Its plugin GUID, `lostkode.ragnavik.progress`, belongs in `CatosAntiCheat_ServerOnly.txt`.
+Ragnavik Server Bridge is server-only. Its GUID is `lostkode.ragnavik.serverbridge`, which belongs in `CatosAntiCheat_ServerOnly.txt`. Clients must not install it.
 
 ## Release gate
 
-1. Update the plugin version in `src/RagnavikProgress.cs`, `package/manifest.json`, and `CHANGELOG.md`.
-2. Build from a clean checkout using `scripts/build.sh` and package with `scripts/package.sh`.
-3. Validate the archive with `scripts/validate-package.sh` and test it on staging before production.
-4. Create and publish the corresponding Ragnavik website blog post. A release must not be published without that post.
-5. Reconstruct the complete effective client and server manifests. Version-check shared mods, put every client-only mod in `CatosAntiCheat_ExtraWhitelist.txt`, and put every server-only mod in `CatosAntiCheat_ServerOnly.txt`.
-6. Before any production restart, save the world and create and verify a separate rollback backup. Check for connected players and coordinate downtime.
-7. Deploy only the validated DLL and configuration. Never copy credentials into source control or release archives.
-8. After restart, verify the intended node, service readiness, BepInEx logs, loaded plugin count, compatibility errors, and source-to-runtime plugin parity. A running task count alone is not proof of a successful deployment.
+1. Keep `BridgePlugin.ModVersion`, `package/manifest.json`, and `CHANGELOG.md` aligned.
+2. Run `scripts/build.sh` and `scripts/package.sh` from a clean checkout.
+3. Validate the exact CatosAntiCheat 1.0.4 hook signatures and stage both existing receiver routes.
+4. Publish the corresponding Ragnavik website post before any Thunderstore publication.
+5. Reconstruct the complete effective client and server manifests. Remove the two legacy DLLs and GUIDs only when adding this bridge DLL and GUID.
+6. Before an authorized production restart, check players, save the world, and create and verify a separate rollback backup.
+7. After restart, verify node placement, readiness, BepInEx plugin count, bridge diagnostics, Catos enforcement, outbox delivery, and source-to-runtime parity.
 
-## Configuration
+## Staging checks
 
-The package defaults to disabled. Configure the private endpoint and token file on the server, then enable reporting. The token file and its contents must remain outside this repository and package.
+Confirm a progress snapshot is accepted once, a controlled Catos mismatch and timeout are each accepted once, an unavailable receiver leaves events queued, and restored service drains them once. Place a malformed test entry in the staging outbox and confirm it is quarantined without blocking later entries. Enable no AzuAntiCheat setting in production because that adapter is intentionally not implemented.
 
-The receiver must authenticate requests, validate their size and fields, deduplicate repeated snapshots, and return HTTP `204 No Content` only after safely accepting a report.
+## Rollback
+
+Restore the two previous DLLs, configs, GUID policy entries, and runtime trees from the verified rollback artifact. Retain `RagnavikServerBridgeQueue` during rollback so events are not silently destroyed. Catos enforcement remains independent of bridge delivery.

@@ -5,6 +5,8 @@
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <OutputType>Library</OutputType>
+    <AssemblyName>RagnavikServerBridge</AssemblyName>
+    <RootNamespace>RagnavikServerBridge</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="assembly_valheim" HintPath="$(ValheimManagedDir)/assembly_valheim.dll" />

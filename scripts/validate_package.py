@@ -8,10 +8,10 @@ archive = sys.argv[1]
 required = {
     "CHANGELOG.md",
     "README.md",
-    "config/lostkode.ragnavik.progress.cfg",
+    "config/lostkode.ragnavik.serverbridge.cfg",
     "icon.png",
     "manifest.json",
-    "plugins/RagnavikProgress/RagnavikProgress.dll",
+    "plugins/RagnavikServerBridge/RagnavikServerBridge.dll",
 }
 with ZipFile(archive) as package:
     names = set(package.namelist())

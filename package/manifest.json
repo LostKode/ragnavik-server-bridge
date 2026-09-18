@@ -1,9 +1,10 @@
 {
-  "name": "Ragnavik_Progress",
-  "version_number": "1.1.0",
-  "website_url": "https://github.com/LostKode/ragnavik-progress",
-  "description": "Server-only boss and EpicMMO milestone reporter with a private configurable HTTP endpoint.",
+  "name": "Ragnavik_Server_Bridge",
+  "version_number": "1.0.0",
+  "website_url": "https://github.com/LostKode/ragnavik-server-bridge",
+  "description": "Server-only bridge for Ragnavik progress and anti-cheat diagnostics.",
   "dependencies": [
-    "denikson-BepInExPack_Valheim-5.4.2350"
+    "denikson-BepInExPack_Valheim-5.4.2350",
+    "catosaurluna-CatosAntiCheat-1.0.4"
   ]
 }
