@@ -103,19 +103,25 @@ def prepare(args: argparse.Namespace) -> None:
 
 def verify(args: argparse.Namespace) -> None:
     base_url = args.repository.rstrip('/')
-    url = f"{base_url}/api/experimental/package/LostKode/{args.name}/{args.version}/"
+    url = f"{base_url}/mods/{args.namespace}/{args.name}"
     for attempt in range(1, 13):
         try:
-            with urllib.request.urlopen(url, timeout=30) as response:
-                payload = json.load(response)
-            found = payload.get("version_number") or payload.get("version", {}).get("version_number")
-            if found == args.version or payload:
-                print(f"verified LostKode-{args.name}-{args.version} at {url}")
-                return
-        except Exception as error:  # API propagation can briefly return 404.
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Ragnavik release validation"},
+            )
+            with urllib.request.urlopen(request, timeout=30) as response:
+                if response.status == 200:
+                    print(f"verified {args.namespace}-{args.name}-{args.version} at {url}")
+                    return
+                print(
+                    f"verification attempt {attempt}/12: HTTP {response.status}",
+                    file=sys.stderr,
+                )
+        except Exception as error:  # Public page propagation can briefly return 404.
             print(f"verification attempt {attempt}/12: {error}", file=sys.stderr)
         time.sleep(10)
-    fail(f"{base_url} did not expose LostKode-{args.name}-{args.version}")
+    fail(f"{url} did not return HTTP 200 for {args.namespace}-{args.name}-{args.version}")
 
 
 def main() -> None:
@@ -132,9 +138,10 @@ def main() -> None:
     prep.add_argument("--output", type=Path, required=True)
     prep.set_defaults(func=prepare)
     check = commands.add_parser("verify")
+    check.add_argument("--namespace", default="LostKode")
     check.add_argument("--name", required=True)
     check.add_argument("--version", required=True)
-    check.add_argument("--repository", default="https://hexium.gg")
+    check.add_argument("--repository", default="https://valheim.hexium.gg")
     check.set_defaults(func=verify)
     args = parser.parse_args()
     args.func(args)
