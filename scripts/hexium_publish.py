@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import sys
@@ -122,6 +123,17 @@ def current_version(name: str) -> str | None:
     fail(f"Hexium page did not expose structured version metadata: {url}")
 
 
+def current_install_location(name: str) -> str:
+    url = f"https://valheim.hexium.gg/mods/LostKode/{name}"
+    request = urllib.request.Request(url, headers={"User-Agent": "Ragnavik release validation"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        page = response.read().decode("utf-8")
+    match = re.search(r"<span class=\"tag tag--install-location\"[^>]*>([^<]+)<\/span>", page)
+    if not match:
+        fail(f"Hexium page did not expose install-location metadata: {url}")
+    return html.unescape(match.group(1)).strip()
+
+
 def current(args: argparse.Namespace) -> None:
     print(current_version(args.name) or "")
 
@@ -131,10 +143,19 @@ def verify(args: argparse.Namespace) -> None:
     for attempt in range(1, 13):
         try:
             published = current_version(args.name)
-            if published == args.version:
-                print(f"verified LostKode-{args.name}-{args.version} at {url}")
+            install_location = current_install_location(args.name)
+            if published == args.version and (
+                args.expected_install_location is None
+                or install_location == args.expected_install_location
+            ):
+                print(
+                    f"verified LostKode-{args.name}-{args.version} "
+                    f"as {install_location} at {url}"
+                )
                 return
-            detail = "not published" if published is None else f"currently exposes {published}"
+            detail = "not published" if published is None else (
+                f"currently exposes {published} as {install_location}"
+            )
             print(f"verification attempt {attempt}/12: {detail}", file=sys.stderr)
         except Exception as error:
             print(f"verification attempt {attempt}/12: {error}", file=sys.stderr)
@@ -162,6 +183,7 @@ def main() -> None:
     check.add_argument("--namespace", default="LostKode")
     check.add_argument("--name", required=True)
     check.add_argument("--version", required=True)
+    check.add_argument("--expected-install-location")
     check.add_argument("--repository", default="https://valheim.hexium.gg")
     check.set_defaults(func=verify)
     args = parser.parse_args()

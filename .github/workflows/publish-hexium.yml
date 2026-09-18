@@ -71,7 +71,7 @@ jobs:
           --expected-version "$EXPECTED_VERSION"
           --release-id "${{ github.run_id }}"
           --repository https://hexium.gg
-          --category Logging --category "Open Source" --category "Valheim 1.0"
+          --category Server-only --category Logging --category "Open Source" --category "Valheim 1.0"
           --output .tcli/hexium.toml
       - name: Check public release state
         run: |
@@ -106,6 +106,7 @@ jobs:
           --repository https://valheim.hexium.gg
           --name Ragnavik_Server_Bridge
           --version "$EXPECTED_VERSION"
+          --expected-install-location Server-only
       - name: Upload release artifact
         if: always()
         uses: actions/upload-artifact@v4
