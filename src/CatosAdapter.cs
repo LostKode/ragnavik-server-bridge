@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
@@ -20,9 +19,10 @@ internal static class CatosAdapter
         try
         {
             var poster = AccessTools.TypeByName("CatosAntiCheat.DiscordPoster");
-            var mismatch = AccessTools.Method(poster, "PostMismatchKick");
-            var timeout = AccessTools.Method(poster, "PostTimeoutKick");
-            if (poster == null || mismatch == null || timeout == null) { bridge.Log.LogError("Catos notification hooks are unavailable; Catos adapter is disabled and enforcement is unaffected."); return; }
+            if (poster == null) { bridge.Log.LogError("Catos notification hooks are unavailable; Catos adapter is disabled and enforcement is unaffected."); return; }
+            var mismatch = AccessTools.Method(poster, "PostMismatchKick", new[] { typeof(string), typeof(ulong), typeof(List<string>) });
+            var timeout = AccessTools.Method(poster, "PostTimeoutKick", new[] { typeof(string), typeof(ulong), typeof(float) });
+            if (mismatch == null || timeout == null) { bridge.Log.LogError("Catos notification hooks are unavailable; Catos adapter is disabled and enforcement is unaffected."); return; }
             var harmony = new Harmony(BridgePlugin.ModGuid + ".catos");
             harmony.Patch(mismatch, postfix: new HarmonyMethod(typeof(CatosAdapter), nameof(AfterMismatch)));
             harmony.Patch(timeout, postfix: new HarmonyMethod(typeof(CatosAdapter), nameof(AfterTimeout)));
@@ -30,28 +30,28 @@ internal static class CatosAdapter
         }
         catch (Exception exception) { bridge.Log.LogError($"Catos adapter failed compatibility checks: {exception.GetType().Name}: {exception.Message}"); }
     }
-    private static void AfterMismatch(object __0, object __1)
+    private static void AfterMismatch(string __0, ulong __1, List<string> __2)
     {
         try
         {
             var problems = new List<string>();
-            if (__1 is IEnumerable values) foreach (var value in values) if (value != null && problems.Count < 20) problems.Add(value.ToString());
+            if (__2 != null) foreach (var value in __2) if (value != null && problems.Count < 20) problems.Add(value);
             if (problems.Count == 0) problems.Add("unspecified Catos rejection");
-            Enqueue("mismatch", __0, problems, null);
+            Enqueue("mismatch", __0, __1, problems, null);
         }
         catch (Exception exception) { _bridge?.Log.LogWarning($"Could not capture Catos mismatch: {exception.Message}"); }
     }
-    private static void AfterTimeout(object __0, float __1)
+    private static void AfterTimeout(string __0, ulong __1, float __2)
     {
-        try { Enqueue("timeout", __0, null, __1); }
+        try { Enqueue("timeout", __0, __1, null, __2); }
         catch (Exception exception) { _bridge?.Log.LogWarning($"Could not capture Catos timeout: {exception.Message}"); }
     }
-    private static void Enqueue(string kind, object peer, IList<string>? problems, float? timeout)
+    private static void Enqueue(string kind, string playerName, ulong steamId, IList<string>? problems, float? timeout)
     {
         var id = Guid.NewGuid().ToString("N");
         var json = new StringBuilder("{\"eventId\":\"").Append(id).Append("\",\"type\":\"").Append(kind)
-            .Append("\",\"server\":\"").Append(Escape(_server)).Append("\",\"steamId\":\"").Append(Escape(ResolveSteamId(peer)))
-            .Append("\",\"characterName\":\"").Append(Escape(ReadPeerName(peer))).Append("\",\"catosVersion\":\"").Append(Escape(ReadCatosVersion())).Append('"');
+            .Append("\",\"server\":\"").Append(Escape(_server)).Append("\",\"steamId\":\"").Append(steamId.ToString(CultureInfo.InvariantCulture))
+            .Append("\",\"characterName\":\"").Append(Escape(playerName)).Append("\",\"catosVersion\":\"").Append(Escape(ReadCatosVersion())).Append('"');
         if (kind == "mismatch")
         {
             json.Append(",\"problems\":[");
@@ -61,8 +61,6 @@ internal static class CatosAdapter
         else json.Append(",\"timeoutSeconds\":").Append(timeout.GetValueOrDefault().ToString("0.###", CultureInfo.InvariantCulture));
         _bridge?.Enqueue("catos", _endpoint, id, json.Append('}').ToString());
     }
-    private static string ResolveSteamId(object peer) { try { return AccessTools.Method(AccessTools.TypeByName("CatosAntiCheat.AdminCheck"), "ResolveSteamId")?.Invoke(null, new[] { peer }) as string ?? ""; } catch { return ""; } }
-    private static string ReadPeerName(object peer) { try { return AccessTools.Field(peer?.GetType(), "m_playerName")?.GetValue(peer) as string ?? ""; } catch { return ""; } }
     private static string ReadCatosVersion() { try { return AccessTools.Field(AccessTools.TypeByName("CatosAntiCheat.Plugin"), "ModVersion")?.GetRawConstantValue()?.ToString() ?? ""; } catch { return ""; } }
     private static string Limit(string value, int maximum) => string.IsNullOrEmpty(value) || value.Length <= maximum ? value ?? "" : value.Substring(0, maximum);
     private static string Escape(string value)
