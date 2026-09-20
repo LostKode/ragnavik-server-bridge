@@ -55,7 +55,7 @@ sealed class Fixture : IDisposable
     public DiskOutbox Outbox { get; }
     private readonly TestLog _log = new();
     public Fixture() => Outbox = new DiskOutbox(Path, 10, _log);
-    public DeliveryPump Pump(IBridgeTransport transport) => new(Outbox, transport, () => "token", "X-Test", _log);
+    public DeliveryPump Pump(IBridgeTransport transport) => new(Outbox, transport, () => "token", _ => "X-Test", _log);
     public void Dispose() { if (Directory.Exists(Path)) Directory.Delete(Path, true); }
 }
 sealed class FakeTransport : IBridgeTransport

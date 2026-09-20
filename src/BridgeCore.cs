@@ -79,8 +79,8 @@ internal sealed class DiskOutbox
 
 internal sealed class DeliveryPump
 {
-    private readonly DiskOutbox _outbox; private readonly IBridgeTransport _transport; private readonly Func<string> _readToken; private readonly string _header; private readonly IBridgeLog _log;
-    public DeliveryPump(DiskOutbox outbox, IBridgeTransport transport, Func<string> readToken, string header, IBridgeLog log) { _outbox = outbox; _transport = transport; _readToken = readToken; _header = header; _log = log; }
+    private readonly DiskOutbox _outbox; private readonly IBridgeTransport _transport; private readonly Func<string> _readToken; private readonly Func<string, string> _resolveHeader; private readonly IBridgeLog _log;
+    public DeliveryPump(DiskOutbox outbox, IBridgeTransport transport, Func<string> readToken, Func<string, string> resolveHeader, IBridgeLog log) { _outbox = outbox; _transport = transport; _readToken = readToken; _resolveHeader = resolveHeader; _log = log; }
     public int PumpOnce()
     {
         string token;
@@ -91,7 +91,9 @@ internal sealed class DeliveryPump
         foreach (var item in _outbox.ReadPending())
         {
             if (!Uri.TryCreate(item.Record.Endpoint, UriKind.Absolute, out var endpoint)) { _log.Error($"Event {item.Record.Id} has an invalid endpoint and remains queued."); break; }
-            if (!_transport.Send(endpoint, _header, token, item.Record.Body, out var diagnostic)) { _log.Warning($"{item.Record.Adapter} delivery deferred: {diagnostic}"); break; }
+            var header = _resolveHeader(item.Record.Adapter);
+            if (string.IsNullOrWhiteSpace(header)) { _log.Error($"Event {item.Record.Id} has no authentication header configured and remains queued."); break; }
+            if (!_transport.Send(endpoint, header, token, item.Record.Body, out var diagnostic)) { _log.Warning($"{item.Record.Adapter} delivery deferred: {diagnostic}"); break; }
             _outbox.Complete(item.Path); delivered++;
         }
         return delivered;

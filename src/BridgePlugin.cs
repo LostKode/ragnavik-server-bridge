@@ -17,7 +17,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     internal ManualLogSource Log => Logger;
     public const string ModGuid = "lostkode.ragnavik.serverbridge";
     public const string ModName = "Ragnavik Server Bridge";
-    public const string ModVersion = "1.0.3";
+    public const string ModVersion = "1.0.4";
     internal static BridgePlugin? Instance;
     internal static BridgeLog? BridgeLogger;
     internal DiskOutbox? Outbox;
@@ -32,7 +32,8 @@ public sealed class BridgePlugin : BaseUnityPlugin
         var enabled = Config.Bind("General", "Enabled", false, "Enable the bridge after private endpoints are configured.");
         var server = Config.Bind("General", "ServerName", "Ragnavik", "Private server label included in reports.");
         var tokenFile = Config.Bind("Connection", "TokenFile", "", "Server-only authentication token file.");
-        var tokenHeader = Config.Bind("Connection", "TokenHeader", "X-Ragnavik-Token", "Authentication header shared by all adapters.");
+        var progressTokenHeader = Config.Bind("Connection", "ProgressTokenHeader", "X-Ragnavik-Token", "Authentication header for progress delivery.");
+        var catosTokenHeader = Config.Bind("Connection", "CatosTokenHeader", "X-Ragnavik-Anticheat", "Authentication header for Catos delivery.");
         var progressEndpoint = Config.Bind("Connection", "ProgressEndpoint", "", "Private progress receiver URL.");
         var catosEndpoint = Config.Bind("Connection", "CatosEndpoint", "", "Private Catos receiver URL.");
         var retrySeconds = Config.Bind("Connection", "RetrySeconds", 5, new ConfigDescription("Seconds between delivery attempts.", new AcceptableValueRange<int>(2, 300)));
@@ -41,14 +42,14 @@ public sealed class BridgePlugin : BaseUnityPlugin
         var catosEnabled = Config.Bind("Adapters", "CatosEnabled", true, "Enable Catos mismatch and timeout reporting.");
         var azuEnabled = Config.Bind("Adapters", "AzuAntiCheatEnabled", false, "Reserved for a future validated AzuAntiCheat adapter.");
 
-        LegacyConfiguration.Apply(Paths.ConfigPath, enabled, server, tokenFile, tokenHeader, progressEndpoint, catosEndpoint, Logger);
+        LegacyConfiguration.Apply(Paths.ConfigPath, enabled, server, tokenFile, progressTokenHeader, progressEndpoint, catosEndpoint, Logger);
         if (!enabled.Value) { Logger.LogInfo($"{ModName} v{ModVersion} is disabled."); return; }
-        if (string.IsNullOrWhiteSpace(tokenFile.Value) || string.IsNullOrWhiteSpace(tokenHeader.Value)) { Logger.LogError("Bridge authentication is incomplete; adapters remain disabled."); return; }
+        if (string.IsNullOrWhiteSpace(tokenFile.Value) || string.IsNullOrWhiteSpace(progressTokenHeader.Value) || string.IsNullOrWhiteSpace(catosTokenHeader.Value)) { Logger.LogError("Bridge authentication is incomplete; adapters remain disabled."); return; }
 
         Outbox = new DiskOutbox(Path.Combine(Paths.ConfigPath, "RagnavikServerBridgeQueue"), maxQueued.Value, BridgeLogger);
         var imported = Outbox.ImportLegacyJson(Path.Combine(Paths.ConfigPath, "RagnavikCatosReporterQueue"), catosEndpoint.Value, "catos");
         if (imported > 0) Logger.LogInfo($"Imported {imported} legacy Catos Reporter queue entries.");
-        _pump = new DeliveryPump(Outbox, new HttpBridgeTransport(), () => File.ReadAllText(tokenFile.Value), tokenHeader.Value, BridgeLogger);
+        _pump = new DeliveryPump(Outbox, new HttpBridgeTransport(), () => File.ReadAllText(tokenFile.Value), adapter => string.Equals(adapter, "catos", StringComparison.OrdinalIgnoreCase) ? catosTokenHeader.Value : progressTokenHeader.Value, BridgeLogger);
         _timer = new Timer(_ => Pump(), null, 0, checked(retrySeconds.Value * 1000));
 
         if (AdapterGate.CanStart(enabled.Value, progressEnabled.Value, progressEndpoint.Value)) ProgressAdapter.Install(this, Config, server.Value, progressEndpoint.Value);
