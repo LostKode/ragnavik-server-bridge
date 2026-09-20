@@ -100,6 +100,18 @@ internal sealed class DeliveryPump
     }
 }
 
+
+internal static class DeliveryDiagnostic
+{
+    public static string Format(int statusCode, string statusDescription, string responseBody)
+    {
+        var detail = new string((responseBody ?? "").Where(value => !char.IsControl(value) || value == ' ').ToArray()).Trim();
+        if (detail.Length > 300) detail = detail.Substring(0, 300) + "...";
+        var status = string.Concat("HTTP ", statusCode, " ", statusDescription).Trim();
+        return string.IsNullOrEmpty(detail) ? status : string.Concat(status, "; response=", detail);
+    }
+}
+
 internal static class AdapterGate
 {
     public static bool CanStart(bool bridgeEnabled, bool adapterEnabled, string endpoint) => bridgeEnabled && adapterEnabled && Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
