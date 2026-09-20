@@ -6,6 +6,7 @@ var tests = new (string Name, Action Run)[] {
     ("duplicate ids are ignored", Duplicate),
     ("corrupt entries are quarantined", Corrupt),
     ("disabled adapters do not start", DisabledAdapters),
+    ("HTTP diagnostics include safe receiver detail", HttpDiagnostics),
 };
 foreach (var test in tests) { test.Run(); Console.WriteLine($"PASS {test.Name}"); }
 
@@ -44,6 +45,13 @@ static void DisabledAdapters()
     True(!AdapterGate.CanStart(true, false, "https://localhost/progress"));
     True(!AdapterGate.CanStart(true, true, ""));
     True(AdapterGate.CanStart(true, true, "https://localhost/progress"));
+}
+static void HttpDiagnostics()
+{
+    var diagnostic = DeliveryDiagnostic.Format(400, "Bad Request", "{\"error\":\"invalid_progress\",\n\"detail\":\"players is invalid\"}");
+    True(diagnostic.Contains("HTTP 400 Bad Request"));
+    True(diagnostic.Contains("players is invalid"));
+    True(!diagnostic.Contains("\n"));
 }
 static OutboxRecord Event(string id) => new() { Id = id, Adapter = "test", Endpoint = "https://localhost/events", Body = "{}" };
 static void True(bool value) { if (!value) throw new Exception("Expected true."); }

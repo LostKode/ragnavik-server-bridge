@@ -87,7 +87,20 @@ internal sealed class HttpBridgeTransport : IBridgeTransport
             using var response = (HttpWebResponse)request.GetResponse();
             var code = (int)response.StatusCode; diagnostic = $"HTTP {code}"; return code >= 200 && code < 300;
         }
-        catch (Exception exception) { diagnostic = $"{exception.GetType().Name}: {exception.Message}"; return false; }
+        catch (WebException exception) when (exception.Response is HttpWebResponse response)
+        {
+            string detail;
+            try
+            {
+                using var stream = response.GetResponseStream();
+                using var reader = stream == null ? null : new StreamReader(stream, Encoding.UTF8);
+                detail = reader?.ReadToEnd() ?? "";
+            }
+            catch { detail = ""; }
+            diagnostic = DeliveryDiagnostic.Format((int)response.StatusCode, response.StatusDescription, detail);
+            return false;
+        }
+        catch (Exception exception) { diagnostic = string.Concat(exception.GetType().Name, ": ", exception.Message); return false; }
     }
 }
 
