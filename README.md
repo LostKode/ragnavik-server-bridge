@@ -4,7 +4,7 @@ Ragnavik Server Bridge is one server-only Valheim plugin for authenticated Ragna
 
 ## Adapters
 
-* Progress reports global boss milestones, per-player private boss defeat keys, boss participants, player deaths, and EpicMMO level milestones.
+* Progress reports global boss milestones, per-player private boss defeat keys, boss participants, player deaths with safe cause attribution, world day and raid state, and EpicMMO level milestones.
 * Catos observes CatosAntiCheat 1.0.4 mismatch and timeout notification methods. It does not replace or weaken enforcement.
 * AzuAntiCheat is a disabled configuration placeholder. No Azu hooks are shipped until its contract is validated.
 
