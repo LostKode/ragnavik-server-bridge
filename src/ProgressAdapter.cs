@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -55,10 +56,11 @@ internal sealed class ProgressAdapter
         if (keys == null) { _bridge.Log.LogWarning("ZoneSystem.m_globalKeys is unavailable; progress collection is paused."); return; }
         var bosses = _reportBosses.Value ? keys.Where(key => key.StartsWith("defeated_", StringComparison.OrdinalIgnoreCase)).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray() : Array.Empty<string>();
         var players = _reportLevels.Value ? ReadPlayers() : Array.Empty<PlayerProgress>();
-        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", _pending.Select(kill => kill.id));
+        var playerBosses = _reportBosses.Value ? ReadPlayerBosses() : Array.Empty<PlayerBossProgress>();
+        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", playerBosses.Select(player => $"{player.id}:{string.Join(",", player.bosses)}")) + "#" + string.Join("|", _pending.Select(kill => kill.id));
         if (signature == _lastSignature && Time.realtimeSinceStartup < _nextHeartbeat) return;
         var id = "progress-" + StableHash(signature);
-        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, bossKills = _pending.ToArray(), milestoneStep = _milestoneStep.Value })))
+        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, playerBosses = playerBosses, bossKills = _pending.ToArray(), milestoneStep = _milestoneStep.Value })))
         { _lastSignature = signature; _nextHeartbeat = Time.realtimeSinceStartup + _heartbeatSeconds.Value; _pending.Clear(); }
     }
 
@@ -87,8 +89,37 @@ internal sealed class ProgressAdapter
         }
         return result.OrderBy(player => player.id, StringComparer.Ordinal).ToArray();
     }
+    private PlayerBossProgress[] ReadPlayerBosses()
+    {
+        try
+        {
+            var keyManager = AccessTools.TypeByName("VentureValheim.Progression.KeyManager");
+            var property = keyManager == null ? null : AccessTools.Property(keyManager, "ServerPrivateKeysList");
+            if (property?.GetValue(null) is not IDictionary privateKeys) return Array.Empty<PlayerBossProgress>();
+            var result = new List<PlayerBossProgress>();
+            foreach (DictionaryEntry entry in privateKeys)
+            {
+                if (entry.Key == null || entry.Value is not IEnumerable keys) continue;
+                var bosses = keys.Cast<object>()
+                    .Select(value => value?.ToString() ?? "")
+                    .Where(key => key.StartsWith("defeated_", StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                result.Add(new PlayerBossProgress { id = entry.Key.ToString() ?? "", bosses = bosses });
+            }
+            return result.Where(player => !string.IsNullOrWhiteSpace(player.id)).OrderBy(player => player.id, StringComparer.Ordinal).ToArray();
+        }
+        catch (Exception exception)
+        {
+            _bridge.Log.LogWarning($"World Advancement Progression private keys are unavailable: {exception.Message}");
+            return Array.Empty<PlayerBossProgress>();
+        }
+    }
+
     private static string StableHash(string value) { unchecked { uint hash = 2166136261; foreach (var c in value) { hash ^= c; hash *= 16777619; } return hash.ToString("x8"); } }
-    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public int milestoneStep; }
+    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public PlayerBossProgress[] playerBosses = Array.Empty<PlayerBossProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public int milestoneStep; }
     [Serializable] private sealed class PlayerProgress { public string id = ""; public string name = ""; public int level; }
+    [Serializable] private sealed class PlayerBossProgress { public string id = ""; public string[] bosses = Array.Empty<string>(); }
     [Serializable] private sealed class BossKill { public string id = ""; public string key = ""; public string boss = ""; public string killer = ""; public string[] participants = Array.Empty<string>(); }
 }

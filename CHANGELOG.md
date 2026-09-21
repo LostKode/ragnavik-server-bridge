@@ -2,6 +2,7 @@
 
 | Version | Changes |
 | --- | --- |
+| 1.0.6 | Report each server-known player's private boss defeat keys from World Advancement Progression so player-based boss totals remain available when players are offline. |
 | 1.0.5 | Report safe receiver validation details for deferred deliveries so HTTP failures can be diagnosed without exposing credentials or request payloads. |
 | 1.0.4 | Use separate authentication headers for progress and Catos delivery so both receivers accept the shared token while notifications remain enabled. |
 | 1.0.3 | Correct the CatosAntiCheat 1.0.4 mismatch and timeout hook signatures so notifications remain enabled without invalid Harmony IL during dedicated-server startup. |
