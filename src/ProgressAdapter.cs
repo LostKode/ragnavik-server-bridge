@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -22,6 +23,8 @@ internal sealed class ProgressAdapter
     private readonly ConfigEntry<bool> _reportBosses;
     private readonly ConfigEntry<bool> _reportLevels;
     private readonly List<BossKill> _pending = new();
+    private readonly List<PlayerDeath> _pendingDeaths = new();
+    private readonly Dictionary<string, DeathContext> _lastDamage = new(StringComparer.Ordinal);
     private readonly HashSet<string> _seenDeaths = new(StringComparer.Ordinal);
     private float _nextCheck;
     private float _nextHeartbeat;
@@ -55,11 +58,14 @@ internal sealed class ProgressAdapter
         if (keys == null) { _bridge.Log.LogWarning("ZoneSystem.m_globalKeys is unavailable; progress collection is paused."); return; }
         var bosses = _reportBosses.Value ? keys.Where(key => key.StartsWith("defeated_", StringComparison.OrdinalIgnoreCase)).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray() : Array.Empty<string>();
         var players = _reportLevels.Value ? ReadPlayers() : Array.Empty<PlayerProgress>();
-        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", _pending.Select(kill => kill.id));
+        var playerBosses = _reportBosses.Value ? ReadPlayerBosses() : Array.Empty<PlayerBossProgress>();
+        var world = ReadWorld();
+        var timeBucket = Math.Floor(world.dayFraction * 288f);
+        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", playerBosses.Select(player => $"{player.id}:{string.Join(",", player.bosses)}")) + "#" + string.Join("|", _pending.Select(kill => kill.id)) + "#" + string.Join("|", _pendingDeaths.Select(death => death.id)) + $"#{world.day}:{timeBucket}:{world.activeEvent}";
         if (signature == _lastSignature && Time.realtimeSinceStartup < _nextHeartbeat) return;
         var id = "progress-" + StableHash(signature);
-        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, bossKills = _pending.ToArray(), milestoneStep = _milestoneStep.Value })))
-        { _lastSignature = signature; _nextHeartbeat = Time.realtimeSinceStartup + _heartbeatSeconds.Value; _pending.Clear(); }
+        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, playerBosses = playerBosses, bossKills = _pending.ToArray(), deaths = _pendingDeaths.ToArray(), world = world, milestoneStep = _milestoneStep.Value })))
+        { _lastSignature = signature; _nextHeartbeat = Time.realtimeSinceStartup + _heartbeatSeconds.Value; _pending.Clear(); _pendingDeaths.Clear(); }
     }
 
     [HarmonyPatch(typeof(Character), "RPC_Damage")]
@@ -76,6 +82,49 @@ internal sealed class ProgressAdapter
         self._nextCheck = 0f;
     }
 
+    [HarmonyPatch(typeof(Player), "OnDeath")]
+    [HarmonyPostfix]
+    private static void AfterPlayerDeath(Player __instance)
+    {
+        var self = _instance;
+        if (self == null || __instance == null || ZNet.instance == null || !ZNet.instance.IsServer()) return;
+        var characterId = __instance.GetZDOID();
+        var playerId = characterId.UserID.ToString();
+        var eventId = $"{characterId}:{DateTime.UtcNow.Ticks}";
+        self._lastDamage.TryGetValue(playerId, out var context);
+        self._lastDamage.Remove(playerId);
+        self._pendingDeaths.Add(new PlayerDeath { id = eventId, playerId = playerId, name = __instance.GetPlayerName() ?? "Unknown Viking", cause = context?.cause ?? "Unknown" });
+        self._nextCheck = 0f;
+    }
+
+    [HarmonyPatch(typeof(Player), "OnDamaged")]
+    [HarmonyPostfix]
+    private static void AfterPlayerDamaged(Player __instance, HitData hit)
+    {
+        var self = _instance;
+        if (self == null || __instance == null || hit == null || ZNet.instance == null || !ZNet.instance.IsServer()) return;
+        var playerId = __instance.GetZDOID().UserID.ToString();
+        var attacker = hit.GetAttacker();
+        var cause = hit.m_hitType.ToString();
+        if (attacker != null && attacker != __instance)
+        {
+            var attackerName = attacker.GetHoverName();
+            if (!string.IsNullOrWhiteSpace(attackerName)) cause += $": {attackerName}";
+        }
+        self._lastDamage[playerId] = new DeathContext { cause = cause };
+    }
+
+    private static WorldProgress ReadWorld()
+    {
+        var environment = EnvMan.instance;
+        var events = RandEventSystem.instance;
+        return new WorldProgress {
+            day = environment == null ? 0 : environment.GetCurrentDay(),
+            dayFraction = environment == null ? 0f : environment.GetDayFraction(),
+            activeEvent = events?.GetActiveEvent()?.m_name ?? ""
+        };
+    }
+
     private PlayerProgress[] ReadPlayers()
     {
         if (ZDOMan.instance == null) return Array.Empty<PlayerProgress>();
@@ -87,8 +136,40 @@ internal sealed class ProgressAdapter
         }
         return result.OrderBy(player => player.id, StringComparer.Ordinal).ToArray();
     }
+    private PlayerBossProgress[] ReadPlayerBosses()
+    {
+        try
+        {
+            var keyManager = AccessTools.TypeByName("VentureValheim.Progression.KeyManager");
+            var property = keyManager == null ? null : AccessTools.Property(keyManager, "ServerPrivateKeysList");
+            if (property?.GetValue(null) is not IDictionary privateKeys) return Array.Empty<PlayerBossProgress>();
+            var result = new List<PlayerBossProgress>();
+            foreach (DictionaryEntry entry in privateKeys)
+            {
+                if (entry.Key == null || entry.Value is not IEnumerable keys) continue;
+                var bosses = keys.Cast<object>()
+                    .Select(value => value?.ToString() ?? "")
+                    .Where(key => key.StartsWith("defeated_", StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                result.Add(new PlayerBossProgress { id = entry.Key.ToString() ?? "", bosses = bosses });
+            }
+            return result.Where(player => !string.IsNullOrWhiteSpace(player.id)).OrderBy(player => player.id, StringComparer.Ordinal).ToArray();
+        }
+        catch (Exception exception)
+        {
+            _bridge.Log.LogWarning($"World Advancement Progression private keys are unavailable: {exception.Message}");
+            return Array.Empty<PlayerBossProgress>();
+        }
+    }
+
     private static string StableHash(string value) { unchecked { uint hash = 2166136261; foreach (var c in value) { hash ^= c; hash *= 16777619; } return hash.ToString("x8"); } }
-    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public int milestoneStep; }
+    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public PlayerBossProgress[] playerBosses = Array.Empty<PlayerBossProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public PlayerDeath[] deaths = Array.Empty<PlayerDeath>(); public WorldProgress world = new(); public int milestoneStep; }
     [Serializable] private sealed class PlayerProgress { public string id = ""; public string name = ""; public int level; }
+    [Serializable] private sealed class PlayerBossProgress { public string id = ""; public string[] bosses = Array.Empty<string>(); }
     [Serializable] private sealed class BossKill { public string id = ""; public string key = ""; public string boss = ""; public string killer = ""; public string[] participants = Array.Empty<string>(); }
+    [Serializable] private sealed class PlayerDeath { public string id = ""; public string playerId = ""; public string name = ""; public string cause = ""; }
+    [Serializable] private sealed class WorldProgress { public int day; public float dayFraction; public string activeEvent = ""; }
+    private sealed class DeathContext { public string cause = "Unknown"; }
 }

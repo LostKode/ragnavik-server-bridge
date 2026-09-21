@@ -1,6 +1,6 @@
 {
   "name": "Ragnavik_Server_Bridge",
-  "version_number": "1.0.5",
+  "version_number": "1.0.6",
   "website_url": "https://www.ragnavik.com",
   "description": "Server-only bridge for Ragnavik progress and anti-cheat diagnostics.",
   "dependencies": [
