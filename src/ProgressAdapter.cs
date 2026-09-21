@@ -23,6 +23,7 @@ internal sealed class ProgressAdapter
     private readonly ConfigEntry<bool> _reportBosses;
     private readonly ConfigEntry<bool> _reportLevels;
     private readonly List<BossKill> _pending = new();
+    private readonly List<PlayerDeath> _pendingDeaths = new();
     private readonly HashSet<string> _seenDeaths = new(StringComparer.Ordinal);
     private float _nextCheck;
     private float _nextHeartbeat;
@@ -57,11 +58,11 @@ internal sealed class ProgressAdapter
         var bosses = _reportBosses.Value ? keys.Where(key => key.StartsWith("defeated_", StringComparison.OrdinalIgnoreCase)).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray() : Array.Empty<string>();
         var players = _reportLevels.Value ? ReadPlayers() : Array.Empty<PlayerProgress>();
         var playerBosses = _reportBosses.Value ? ReadPlayerBosses() : Array.Empty<PlayerBossProgress>();
-        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", playerBosses.Select(player => $"{player.id}:{string.Join(",", player.bosses)}")) + "#" + string.Join("|", _pending.Select(kill => kill.id));
+        var signature = string.Join("|", bosses) + "#" + string.Join("|", players.Select(player => $"{player.id}:{player.level}")) + "#" + string.Join("|", playerBosses.Select(player => $"{player.id}:{string.Join(",", player.bosses)}")) + "#" + string.Join("|", _pending.Select(kill => kill.id)) + "#" + string.Join("|", _pendingDeaths.Select(death => death.id));
         if (signature == _lastSignature && Time.realtimeSinceStartup < _nextHeartbeat) return;
         var id = "progress-" + StableHash(signature);
-        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, playerBosses = playerBosses, bossKills = _pending.ToArray(), milestoneStep = _milestoneStep.Value })))
-        { _lastSignature = signature; _nextHeartbeat = Time.realtimeSinceStartup + _heartbeatSeconds.Value; _pending.Clear(); }
+        if (_bridge.Enqueue("progress", _endpoint, id, JsonUtility.ToJson(new ProgressReport { server = _server, instance = Environment.GetEnvironmentVariable("HOSTNAME") ?? "", bosses = bosses, players = players, playerBosses = playerBosses, bossKills = _pending.ToArray(), deaths = _pendingDeaths.ToArray(), milestoneStep = _milestoneStep.Value })))
+        { _lastSignature = signature; _nextHeartbeat = Time.realtimeSinceStartup + _heartbeatSeconds.Value; _pending.Clear(); _pendingDeaths.Clear(); }
     }
 
     [HarmonyPatch(typeof(Character), "RPC_Damage")]
@@ -75,6 +76,19 @@ internal sealed class ProgressAdapter
         var nearby = Player.GetAllPlayers().Where(player => player != null && !player.IsDead() && Vector3.Distance(player.transform.position, __instance.transform.position) <= self._participantRadius.Value).Select(player => player.GetPlayerName()).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
         var killer = hit.GetAttacker() is Player player ? player.GetPlayerName() : "Unknown Viking";
         self._pending.Add(new BossKill { id = eventId, key = __instance.m_defeatSetGlobalKey ?? "", boss = __instance.GetHoverName(), killer = killer, participants = nearby });
+        self._nextCheck = 0f;
+    }
+
+    [HarmonyPatch(typeof(Player), "OnDeath")]
+    [HarmonyPostfix]
+    private static void AfterPlayerDeath(Player __instance)
+    {
+        var self = _instance;
+        if (self == null || __instance == null || ZNet.instance == null || !ZNet.instance.IsServer()) return;
+        var characterId = __instance.GetZDOID();
+        var playerId = characterId.UserID.ToString();
+        var eventId = $"{characterId}:{DateTime.UtcNow.Ticks}";
+        self._pendingDeaths.Add(new PlayerDeath { id = eventId, playerId = playerId, name = __instance.GetPlayerName() ?? "Unknown Viking" });
         self._nextCheck = 0f;
     }
 
@@ -118,8 +132,9 @@ internal sealed class ProgressAdapter
     }
 
     private static string StableHash(string value) { unchecked { uint hash = 2166136261; foreach (var c in value) { hash ^= c; hash *= 16777619; } return hash.ToString("x8"); } }
-    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public PlayerBossProgress[] playerBosses = Array.Empty<PlayerBossProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public int milestoneStep; }
+    [Serializable] private sealed class ProgressReport { public string server = ""; public string instance = ""; public string[] bosses = Array.Empty<string>(); public PlayerProgress[] players = Array.Empty<PlayerProgress>(); public PlayerBossProgress[] playerBosses = Array.Empty<PlayerBossProgress>(); public BossKill[] bossKills = Array.Empty<BossKill>(); public PlayerDeath[] deaths = Array.Empty<PlayerDeath>(); public int milestoneStep; }
     [Serializable] private sealed class PlayerProgress { public string id = ""; public string name = ""; public int level; }
     [Serializable] private sealed class PlayerBossProgress { public string id = ""; public string[] bosses = Array.Empty<string>(); }
     [Serializable] private sealed class BossKill { public string id = ""; public string key = ""; public string boss = ""; public string killer = ""; public string[] participants = Array.Empty<string>(); }
+    [Serializable] private sealed class PlayerDeath { public string id = ""; public string playerId = ""; public string name = ""; }
 }
