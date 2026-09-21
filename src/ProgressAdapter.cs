@@ -16,6 +16,10 @@ internal sealed class ProgressAdapter
     private readonly string _server;
     private readonly string _endpoint;
     private readonly FieldInfo? _globalKeys = AccessTools.Field(typeof(ZoneSystem), "m_globalKeys");
+    private readonly MethodInfo? _currentDay = typeof(EnvMan)
+        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        .FirstOrDefault(method => (method.Name == "GetCurrentDay" || method.Name == "GetDay")
+                                  && method.GetParameters().Length == 0);
     private readonly ConfigEntry<int> _checkSeconds;
     private readonly ConfigEntry<int> _heartbeatSeconds;
     private readonly ConfigEntry<int> _milestoneStep;
@@ -114,12 +118,12 @@ internal sealed class ProgressAdapter
         self._lastDamage[playerId] = new DeathContext { cause = cause };
     }
 
-    private static WorldProgress ReadWorld()
+    private WorldProgress ReadWorld()
     {
         var environment = EnvMan.instance;
         var events = RandEventSystem.instance;
         return new WorldProgress {
-            day = environment == null ? 0 : environment.GetCurrentDay(),
+            day = environment == null || _currentDay == null ? 0 : Convert.ToInt32(_currentDay.Invoke(environment, null)),
             dayFraction = environment == null ? 0f : environment.GetDayFraction(),
             activeEvent = events?.GetActiveEvent()?.m_name ?? ""
         };
