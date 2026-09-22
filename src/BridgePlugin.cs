@@ -17,7 +17,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     internal ManualLogSource Log => Logger;
     public const string ModGuid = "lostkode.ragnavik.serverbridge";
     public const string ModName = "Ragnavik Server Bridge";
-    public const string ModVersion = "1.0.6";
+    public const string ModVersion = "1.0.7";
     internal static BridgePlugin? Instance;
     internal static BridgeLog? BridgeLogger;
     internal DiskOutbox? Outbox;
@@ -40,6 +40,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
         var maxQueued = Config.Bind("Connection", "MaxQueuedEvents", 1000, new ConfigDescription("Maximum durable events retained.", new AcceptableValueRange<int>(10, 10000)));
         var progressEnabled = Config.Bind("Adapters", "ProgressEnabled", true, "Enable boss and EpicMMO reporting.");
         var catosEnabled = Config.Bind("Adapters", "CatosEnabled", true, "Enable Catos mismatch and timeout reporting.");
+        var maintenanceEnabled = Config.Bind("Adapters", "MaintenanceCountdownEnabled", true, "Broadcast planned maintenance countdowns to connected players.");
         var azuEnabled = Config.Bind("Adapters", "AzuAntiCheatEnabled", false, "Reserved for a future validated AzuAntiCheat adapter.");
 
         LegacyConfiguration.Apply(Paths.ConfigPath, enabled, server, tokenFile, progressTokenHeader, progressEndpoint, catosEndpoint, Logger);
@@ -54,6 +55,8 @@ public sealed class BridgePlugin : BaseUnityPlugin
 
         if (AdapterGate.CanStart(enabled.Value, progressEnabled.Value, progressEndpoint.Value)) ProgressAdapter.Install(this, Config, server.Value, progressEndpoint.Value);
         else Logger.LogInfo("Progress adapter is disabled or has no valid endpoint.");
+        if (AdapterGate.CanStart(enabled.Value, maintenanceEnabled.Value, progressEndpoint.Value)) MaintenanceAdapter.Install(this, Config, progressEndpoint.Value, tokenFile.Value, progressTokenHeader.Value);
+        else Logger.LogInfo("Maintenance countdown adapter is disabled or has no valid progress endpoint.");
         if (AdapterGate.CanStart(enabled.Value, catosEnabled.Value, catosEndpoint.Value)) CatosAdapter.Install(this, server.Value, catosEndpoint.Value);
         else Logger.LogInfo("Catos adapter is disabled or has no valid endpoint.");
         if (azuEnabled.Value) Logger.LogWarning("AzuAntiCheat adapter is reserved but not implemented; no patches were installed.");
@@ -64,7 +67,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     {
         var queued = Outbox?.Enqueue(new OutboxRecord { Adapter = adapter, Endpoint = endpoint, Id = id, Body = body }) == true; if (queued) Pump(); return queued;
     }
-    private void Update() => ProgressAdapter.Tick();
+    private void Update() { ProgressAdapter.Tick(); MaintenanceAdapter.Tick(); }
     private void Pump()
     {
         if (_pump == null || Interlocked.Exchange(ref _pumping, 1) != 0) return;
