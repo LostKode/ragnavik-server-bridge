@@ -6,6 +6,7 @@ var tests = new (string Name, Action Run)[] {
     ("duplicate ids are ignored", Duplicate),
     ("corrupt entries are quarantined", Corrupt),
     ("disabled adapters do not start", DisabledAdapters),
+    ("maintenance countdown thresholds and copy", MaintenanceCountdowns),
     ("HTTP diagnostics include safe receiver detail", HttpDiagnostics),
 };
 foreach (var test in tests) { test.Run(); Console.WriteLine($"PASS {test.Name}"); }
@@ -55,6 +56,16 @@ static void HttpDiagnostics()
 }
 static OutboxRecord Event(string id) => new() { Id = id, Adapter = "test", Endpoint = "https://localhost/events", Body = "{}" };
 static void True(bool value) { if (!value) throw new Exception("Expected true."); }
+static void MaintenanceCountdowns()
+{
+    Equal(600, MaintenanceCountdown.Due(601, 600)!.Value);
+    Equal(300, MaintenanceCountdown.Due(302, 299)!.Value);
+    Equal(10, MaintenanceCountdown.Due(11, 10)!.Value);
+    Equal(1, MaintenanceCountdown.Due(2, 1)!.Value);
+    True(!MaintenanceCountdown.Due(299, 298).HasValue);
+    True(MaintenanceCountdown.Message(60, "Update").Contains("1 minute"));
+    True(MaintenanceCountdown.Message(1, "Update").Contains("1 second"));
+}
 static void Equal<T>(T expected, T actual) where T : IEquatable<T> { if (!expected.Equals(actual)) throw new Exception($"Expected {expected}, got {actual}."); }
 
 sealed class Fixture : IDisposable

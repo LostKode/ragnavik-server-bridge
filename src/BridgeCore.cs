@@ -116,3 +116,26 @@ internal static class AdapterGate
 {
     public static bool CanStart(bool bridgeEnabled, bool adapterEnabled, string endpoint) => bridgeEnabled && adapterEnabled && Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }
+
+internal static class MaintenanceCountdown
+{
+    private static readonly int[] Thresholds = { 600, 300, 60, 30, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 };
+
+    public static int? Due(int previousSeconds, int currentSeconds)
+    {
+        int? due = null;
+        foreach (var threshold in Thresholds)
+            if (previousSeconds > threshold && currentSeconds <= threshold)
+                due = threshold;
+        return due;
+    }
+
+    public static string Message(int seconds, string reason)
+    {
+        var time = seconds >= 60
+            ? $"{seconds / 60} minute{(seconds == 60 ? "" : "s")}"
+            : $"{seconds} second{(seconds == 1 ? "" : "s")}";
+        var detail = string.IsNullOrWhiteSpace(reason) ? "" : $" Reason: {reason}.";
+        return $"Server maintenance begins in {time}.{detail} Please log out safely.";
+    }
+}
