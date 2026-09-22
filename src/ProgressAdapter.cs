@@ -131,12 +131,18 @@ internal sealed class ProgressAdapter
 
     private PlayerProgress[] ReadPlayers()
     {
-        if (ZDOMan.instance == null) return Array.Empty<PlayerProgress>();
         var result = new List<PlayerProgress>();
-        foreach (var player in ZNet.instance.GetPlayerList())
+        foreach (var player in Player.GetAllPlayers())
         {
-            var zdo = ZDOMan.instance.GetZDO(player.m_characterID);
-            if (zdo != null) result.Add(new PlayerProgress { id = player.m_characterID.UserID.ToString(), name = player.m_name ?? "Unknown Viking", level = Math.Max(1, zdo.GetInt("EpicMMOSystem_level", 1)) });
+            if (player == null) continue;
+            var characterId = player.GetZDOID();
+            var zdo = player.GetComponent<ZNetView>()?.GetZDO();
+            if (zdo == null || characterId.IsNone()) continue;
+            result.Add(new PlayerProgress {
+                id = characterId.UserID.ToString(),
+                name = player.GetPlayerName() ?? "Unknown Viking",
+                level = Math.Max(1, zdo.GetInt("EpicMMOSystem_level", 1))
+            });
         }
         return result.OrderBy(player => player.id, StringComparer.Ordinal).ToArray();
     }

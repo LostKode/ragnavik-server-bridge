@@ -17,7 +17,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     internal ManualLogSource Log => Logger;
     public const string ModGuid = "lostkode.ragnavik.serverbridge";
     public const string ModName = "Ragnavik Server Bridge";
-    public const string ModVersion = "1.0.7";
+    public const string ModVersion = "1.0.8";
     internal static BridgePlugin? Instance;
     internal static BridgeLog? BridgeLogger;
     internal DiskOutbox? Outbox;

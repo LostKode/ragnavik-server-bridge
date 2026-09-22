@@ -2,6 +2,7 @@
 
 | Version | Changes |
 | --- | --- |
+| 1.0.8 | Read connected EpicMMO player levels from live server player objects so level milestones reach Longhouse. |
 | 1.0.7 | Broadcast planned maintenance warnings in game at 10 minutes, 5 minutes, 1 minute, 30 seconds, and each of the final 10 seconds. |
 | 1.0.6 | Report per-player private boss keys, player deaths with safe cause attribution, and world day, time, and active raid data for Discord progress commands. |
 | 1.0.5 | Report safe receiver validation details for deferred deliveries so HTTP failures can be diagnosed without exposing credentials or request payloads. |
