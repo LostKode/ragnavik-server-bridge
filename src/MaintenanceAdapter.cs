@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Threading;
 using BepInEx.Configuration;
@@ -10,6 +11,7 @@ namespace RagnavikServerBridge;
 
 internal sealed class MaintenanceAdapter
 {
+    private static readonly MethodInfo CharacterMessage = ResolveCharacterMessage();
     private static MaintenanceAdapter? _instance;
     private readonly BridgePlugin _bridge;
     private readonly Uri _endpoint;
@@ -74,8 +76,30 @@ internal sealed class MaintenanceAdapter
         if (!due.HasValue) return;
         var message = MaintenanceCountdown.Message(due.Value, state.reason);
         foreach (var player in Player.GetAllPlayers())
-            player?.Message(MessageHud.MessageType.Center, message);
+            if (player != null) SendMessage(player, message);
         _bridge.Log.LogInfo($"Broadcast maintenance countdown: {due.Value} second(s).");
+    }
+
+    private static MethodInfo ResolveCharacterMessage()
+    {
+        MethodInfo? legacy = null;
+        foreach (var method in typeof(Character).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (method.Name != nameof(Character.Message)) continue;
+            var parameters = method.GetParameters();
+            if (parameters.Length == 5 && parameters[4].ParameterType == typeof(bool)) return method;
+            if (parameters.Length == 4) legacy = method;
+        }
+
+        return legacy ?? throw new MissingMethodException(typeof(Character).FullName, nameof(Character.Message));
+    }
+
+    private static void SendMessage(Character character, string message)
+    {
+        var arguments = CharacterMessage.GetParameters().Length == 5
+            ? new object?[] { MessageHud.MessageType.Center, message, 0, null, false }
+            : new object?[] { MessageHud.MessageType.Center, message, 0, null };
+        CharacterMessage.Invoke(character, arguments);
     }
 
     private void Poll()
