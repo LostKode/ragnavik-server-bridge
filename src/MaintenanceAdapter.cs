@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Reflection;
+using BepInEx.Bootstrap;
 using System.Threading.Tasks;
 using System.Threading;
 using BepInEx.Configuration;
@@ -11,7 +11,6 @@ namespace RagnavikServerBridge;
 
 internal sealed class MaintenanceAdapter
 {
-    private static readonly MethodInfo CharacterMessage = ResolveCharacterMessage();
     private static MaintenanceAdapter? _instance;
     private readonly BridgePlugin _bridge;
     private readonly Uri _endpoint;
@@ -40,6 +39,12 @@ internal sealed class MaintenanceAdapter
     public static void Install(BridgePlugin bridge, ConfigFile config, string progressEndpoint,
                                string tokenFile, string tokenHeader)
     {
+        if (!Chainloader.PluginInfos.TryGetValue("org.bepinex.plugins.servercharacters", out var plugin)
+            || plugin.Metadata.Version != new Version(1, 4, 17))
+        {
+            bridge.Log.LogWarning("Maintenance messages disabled: requires verified ServerCharacters 1.4.17.");
+            return;
+        }
         _instance = new MaintenanceAdapter(bridge, config, progressEndpoint, tokenFile, tokenHeader);
         bridge.Log.LogInfo("Maintenance countdown adapter installed.");
     }
@@ -75,31 +80,11 @@ internal sealed class MaintenanceAdapter
         _previousRemaining = remaining;
         if (!due.HasValue) return;
         var message = MaintenanceCountdown.Message(due.Value, state.reason);
-        foreach (var player in Player.GetAllPlayers())
-            if (player != null) SendMessage(player, message);
-        _bridge.Log.LogInfo($"Broadcast maintenance countdown: {due.Value} second(s).");
-    }
-
-    private static MethodInfo ResolveCharacterMessage()
-    {
-        MethodInfo? legacy = null;
-        foreach (var method in typeof(Character).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-        {
-            if (method.Name != nameof(Character.Message)) continue;
-            var parameters = method.GetParameters();
-            if (parameters.Length == 5 && parameters[4].ParameterType == typeof(bool)) return method;
-            if (parameters.Length == 4) legacy = method;
-        }
-
-        return legacy ?? throw new MissingMethodException(typeof(Character).FullName, nameof(Character.Message));
-    }
-
-    private static void SendMessage(Character character, string message)
-    {
-        var arguments = CharacterMessage.GetParameters().Length == 5
-            ? new object?[] { MessageHud.MessageType.Center, message, 0, null, false }
-            : new object?[] { MessageHud.MessageType.Center, message, 0, null };
-        CharacterMessage.Invoke(character, arguments);
+        if (ZNet.instance == null || !ZNet.instance.IsServer()) return;
+        var result = MaintenanceMessenger.Send(ZNet.instance.GetPeers(), message);
+        var report = $"Maintenance countdown queued: {due.Value} second(s); recipients={result.Recipients}; queued={result.Queued}; failed={result.Failed}; client display unconfirmed.";
+        if (result.Failed > 0 || result.Recipients == 0) _bridge.Log.LogWarning(report);
+        else _bridge.Log.LogInfo(report);
     }
 
     private void Poll()

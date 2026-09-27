@@ -54,6 +54,10 @@ jobs:
           echo "BEPINEX_CORE_DIR=$reference_dir" >> "$GITHUB_ENV"
       - name: Build Server Bridge
         run: ./scripts/build.sh
+      - name: Test bridge and maintenance delivery
+        run: |
+          dotnet run --project tests/RagnavikServerBridge.Tests.csproj --configuration Release
+          dotnet run --project tests/MaintenanceMessages/MaintenanceMessages.csproj --configuration Release
       - name: Package Server Bridge
         run: ./scripts/package.sh
       - run: dotnet tool restore
