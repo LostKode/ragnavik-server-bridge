@@ -1,6 +1,7 @@
 using RagnavikServerBridge;
 
 var tests = new (string Name, Action Run)[] {
+    ("world-save completion requires successful writes", WorldSaveCompletion),
     ("delivery removes accepted events", Delivery),
     ("retry retains failed events", Retry),
     ("duplicate ids are ignored", Duplicate),
@@ -10,6 +11,22 @@ var tests = new (string Name, Action Run)[] {
     ("HTTP diagnostics include safe receiver detail", HttpDiagnostics),
 };
 foreach (var test in tests) { test.Run(); Console.WriteLine($"PASS {test.Name}"); }
+
+static void WorldSaveCompletion()
+{
+    foreach (var lines in new[] { Array.Empty<string>(), new[] { "World save (5/5) done." }, new[] { "### Save World Thread Started! ###", "World save (5/5) FAILED." }, new[] { "### Save World Thread Started! ###", "World save (5/5) done.", "Error saving world! cleanup failed" } })
+    {
+        var evidence = new WorldSaveEvidence();
+        foreach (var line in lines) evidence.Observe(line);
+        var failed = false;
+        try { evidence.RequireSuccess(); } catch (InvalidOperationException) { failed = true; }
+        True(failed);
+    }
+    var success = new WorldSaveEvidence();
+    success.Observe("### Save World Thread Started! ###");
+    success.Observe("World save (5/5) done. Total time [500ms]");
+    success.RequireSuccess();
+}
 
 static void Delivery()
 {

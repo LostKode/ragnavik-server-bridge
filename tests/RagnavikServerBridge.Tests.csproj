@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
-  <ItemGroup><Compile Remove="MaintenanceMessages/**/*.cs" /><Compile Include="../src/BridgeCore.cs" Link="BridgeCore.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="MaintenanceMessages/**/*.cs" /><Compile Remove="WorldSave/**/*.cs" /><Compile Include="../src/WorldSaveEvidence.cs" Link="WorldSaveEvidence.cs" /><Compile Include="../src/BridgeCore.cs" Link="BridgeCore.cs" /></ItemGroup>
 </Project>
