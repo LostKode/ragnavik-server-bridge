@@ -58,6 +58,7 @@ jobs:
         run: |
           dotnet run --project tests/RagnavikServerBridge.Tests.csproj --configuration Release
           dotnet run --project tests/MaintenanceMessages/MaintenanceMessages.csproj --configuration Release
+          dotnet run --project tests/WorldSave/WorldSave.csproj --configuration Release
       - name: Package Server Bridge
         run: ./scripts/package.sh
       - run: dotnet tool restore

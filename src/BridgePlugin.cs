@@ -18,7 +18,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     internal ManualLogSource Log => Logger;
     public const string ModGuid = "lostkode.ragnavik.serverbridge";
     public const string ModName = "Ragnavik Server Bridge";
-    public const string ModVersion = "1.0.10";
+    public const string ModVersion = "1.0.11";
     internal static BridgePlugin? Instance;
     internal static BridgeLog? BridgeLogger;
     internal DiskOutbox? Outbox;
@@ -48,6 +48,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
         if (!enabled.Value) { Logger.LogInfo($"{ModName} v{ModVersion} is disabled."); return; }
         if (string.IsNullOrWhiteSpace(tokenFile.Value) || string.IsNullOrWhiteSpace(progressTokenHeader.Value) || string.IsNullOrWhiteSpace(catosTokenHeader.Value)) { Logger.LogError("Bridge authentication is incomplete; adapters remain disabled."); return; }
 
+        WorldSaveAdapter.Install(this);
         Outbox = new DiskOutbox(Path.Combine(Paths.ConfigPath, "RagnavikServerBridgeQueue"), maxQueued.Value, BridgeLogger);
         var imported = Outbox.ImportLegacyJson(Path.Combine(Paths.ConfigPath, "RagnavikCatosReporterQueue"), catosEndpoint.Value, "catos");
         if (imported > 0) Logger.LogInfo($"Imported {imported} legacy Catos Reporter queue entries.");
@@ -68,13 +69,13 @@ public sealed class BridgePlugin : BaseUnityPlugin
     {
         var queued = Outbox?.Enqueue(new OutboxRecord { Adapter = adapter, Endpoint = endpoint, Id = id, Body = body }) == true; if (queued) Pump(); return queued;
     }
-    private void Update() { ProgressAdapter.Tick(); MaintenanceAdapter.Tick(); }
+    private void Update() { ProgressAdapter.Tick(); MaintenanceAdapter.Tick(); WorldSaveAdapter.Tick(); }
     private void Pump()
     {
         if (_pump == null || Interlocked.Exchange(ref _pumping, 1) != 0) return;
         Task.Run(() => { try { _pump.PumpOnce(); } finally { Interlocked.Exchange(ref _pumping, 0); } });
     }
-    private void OnDestroy() { _timer?.Dispose(); Instance = null; }
+    private void OnDestroy() { WorldSaveAdapter.Stop(); _timer?.Dispose(); Instance = null; }
 }
 
 internal sealed class HttpBridgeTransport : IBridgeTransport

@@ -33,3 +33,11 @@ Restore the two previous DLLs, configs, GUID policy entries, and runtime trees f
 Countdowns use the verified ServerCharacters 1.4.17 peer RPC, which displays both center-screen text and chat. Connected ready peers are selected independently of server-side player objects. The adapter disables itself for unverified ServerCharacters versions.
 
 `Maintenance countdown queued` reports recipients, queued sends, and failures. It is not a client-display acknowledgement. The previous unconditional `Broadcast maintenance countdown` log was removed; deployment tooling that relies on that old line must remain blocked until its gate is updated and message delivery is validated. No world-save behavior changes in this release.
+
+## Dedicated world saves (1.0.11)
+
+The enabled bridge reads `RagnavikMaintenance/save-request.json` under its server config directory on the Unity update thread. Requests require a fresh Unix timestamp (`createdAt`, maximum age 30 seconds) and a 32-character lowercase hexadecimal `id`. Deployment tooling 1.1.4 writes these requests atomically. This is a local filesystem control channel, not a public endpoint.
+
+The adapter refuses non-dedicated servers, concurrent saves, stale requests, and unknown save signatures. It calls `ZNet.Save(true, false, false)` and requires the successful world-write log during that call; any write failure or skipped save produces a failed receipt. `save-result.json` is flushed and atomically replaced with the same request ID and explicit status/error. Completed requests are not replayed after restart. This world-only operation does not guarantee character inventory persistence.
+
+Validate the direct bridge path after a controlled installation. Older running bridges can be upgraded using the deployment script's fresh scheduled-save gate. Never bypass confirmation or claim an uninstalled bridge feature was live-tested.

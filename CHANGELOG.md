@@ -2,6 +2,7 @@
 
 | Version | Changes |
 | --- | --- |
+| 1.0.11 | Add dedicated world-only save requests with durable request-specific success/error receipts. Require successful write evidence; do not use the failing ServerCharacters profile-save entrypoint. |
 | 1.0.10 | Send maintenance notices to connected peers through the verified ServerCharacters handler, displaying both chat and center-screen messages. Report queued recipients and failures without claiming client receipt. |
 | 1.0.9 | Restore maintenance countdown messages after Valheim added the optional message logging parameter. |
 | 1.0.8 | Read connected EpicMMO player levels from live server player objects so level milestones reach Longhouse. |
