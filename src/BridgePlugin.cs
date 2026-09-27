@@ -10,6 +10,7 @@ using BepInEx.Logging;
 
 namespace RagnavikServerBridge;
 
+[BepInDependency("org.bepinex.plugins.servercharacters", BepInDependency.DependencyFlags.SoftDependency)]
 [BepInPlugin(ModGuid, ModName, ModVersion)]
 [BepInDependency("com.catosvalheim.anticheat", "1.0.4")]
 public sealed class BridgePlugin : BaseUnityPlugin
@@ -17,7 +18,7 @@ public sealed class BridgePlugin : BaseUnityPlugin
     internal ManualLogSource Log => Logger;
     public const string ModGuid = "lostkode.ragnavik.serverbridge";
     public const string ModName = "Ragnavik Server Bridge";
-    public const string ModVersion = "1.0.9";
+    public const string ModVersion = "1.0.10";
     internal static BridgePlugin? Instance;
     internal static BridgeLog? BridgeLogger;
     internal DiskOutbox? Outbox;

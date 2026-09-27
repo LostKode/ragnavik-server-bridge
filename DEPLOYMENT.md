@@ -27,3 +27,9 @@ Hexium publishing is separate from deployment. A successful upload does not auth
 ## Rollback
 
 Restore the two previous DLLs, configs, GUID policy entries, and runtime trees from the verified rollback artifact. Retain `RagnavikServerBridgeQueue` during rollback so events are not silently destroyed. Catos enforcement remains independent of bridge delivery.
+
+## Maintenance message delivery (1.0.10)
+
+Countdowns use the verified ServerCharacters 1.4.17 peer RPC, which displays both center-screen text and chat. Connected ready peers are selected independently of server-side player objects. The adapter disables itself for unverified ServerCharacters versions.
+
+`Maintenance countdown queued` reports recipients, queued sends, and failures. It is not a client-display acknowledgement. The previous unconditional `Broadcast maintenance countdown` log was removed; deployment tooling that relies on that old line must remain blocked until its gate is updated and message delivery is validated. No world-save behavior changes in this release.
